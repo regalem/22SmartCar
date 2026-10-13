@@ -51,10 +51,16 @@ for v in data:
     acc += (v - mean) ** 2
 std = math.sqrt(acc / len(data))
 
-# --- 剔除离群值 ---
-for v in data:
-    if v > mean + 2 * std:
-        data.remove(v)
+# --- 剔除离群值（双向） ---
+kept_times = []
+kept_values = []
+for t, v in zip(times, data):
+    if abs(v - mean) <= 2 * std:
+        kept_times.append(t)
+        kept_values.append(v)
+
+times = kept_times
+data = kept_values
 
 # --- 输出清洗后的数据 ---
 output_path = OUTPUT_FILE
@@ -66,5 +72,5 @@ for v in cleaned:
 
 print("均值 mean = %.4f" % mean)
 print("标准差 std = %.4f" % std)
-print("清洗后剩余 %d 条" % len(cleaned))
+print("清洗后剩余 %d 条" % len(data))
 print("已保存到 %s" % output_path)
