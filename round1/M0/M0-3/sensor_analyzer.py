@@ -24,7 +24,6 @@ OUTPUT_FILE = "cleaned_data.csv"
 
 data = []
 times = []
-cleaned = []
 
 print("=== 传感器数据分析 ===")
 
@@ -64,11 +63,11 @@ data = kept_values
 
 # --- 输出清洗后的数据 ---
 output_path = OUTPUT_FILE
-f = open(output_path, "w")
-writer = csv.writer(f)
-writer.writerow(["time", "value"])
-for v in cleaned:
-    writer.writerow([v])
+with open(output_path, "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(["time", "value"])
+    for t, v in zip(times, data):
+        writer.writerow([t, v])
 
 print("均值 mean = %.4f" % mean)
 print("标准差 std = %.4f" % std)
