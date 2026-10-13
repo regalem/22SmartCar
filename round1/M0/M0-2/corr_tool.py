@@ -2,6 +2,7 @@
 """M0-2：读取 YAML 配置，计算两列数据的 Pearson 相关系数。"""
 
 import csv
+import math
 from pathlib import Path
 
 import yaml
@@ -26,6 +27,9 @@ def read_xy(csv_path, x_name, y_name):
 def pearson(xs, ys):
     """手写 Pearson 相关系数。"""
     n = len(xs)
+    if n != len(ys) or n < 2:
+        raise ValueError("数据点数量不足，或 x/y 长度不一致")
+
     mean_x = sum(xs) / n
     mean_y = sum(ys) / n
 
@@ -37,7 +41,10 @@ def pearson(xs, ys):
         ss_y += dy * dy
         sp += dx * dy
 
-    return sp / (ss_x * ss_y)
+    if ss_x == 0.0 or ss_y == 0.0:
+        raise ValueError("某一列取值恒定，方差为 0，相关系数无定义")
+
+    return sp / math.sqrt(ss_x * ss_y)
 
 
 if __name__ == "__main__":
