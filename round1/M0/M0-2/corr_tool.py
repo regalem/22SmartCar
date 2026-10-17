@@ -57,6 +57,11 @@ def pearson(xs, ys):
     # 原脚本写成 sp / (ss_x * ss_y)，量纲不对，结果会趋近 0。
     r = sp / math.sqrt(ss_x * ss_y)
 
+    # NaN/Inf 会让 max/min 的比较失真（例如 min(1.0, nan) 会返回 1.0），
+    # 所以先显式拒绝非有限结果。
+    if not math.isfinite(r):
+        raise ValueError("相关系数不是有限数值（输入可能包含 NaN/Inf）")
+
     # 浮点误差可能让理论上等于 1 的结果略超 1，钳位只做保护。
     return max(-1.0, min(1.0, r))
 
@@ -102,7 +107,8 @@ def read_xy(csv_path, x_name, y_name):
     """读取 CSV 指定两列，返回两个等长的 float 列表。
 
     Raises:
-        ValueError: 文件不存在、空文件、缺列、非数值、有效点少于 2 个。
+        ValueError: 文件不存在、空文件、缺列、非数值、非有限数值（NaN/Inf）、
+            有效点少于 2 个。
     """
     # is_file() 同时排除"不存在"和"是目录"。
     if not csv_path.is_file():
@@ -123,11 +129,16 @@ def read_xy(csv_path, x_name, y_name):
         # 第 1 行是表头，数据从第 2 行开始，行号与编辑器一致。
         for line_no, row in enumerate(reader, start=2):
             try:
-                xs.append(float(row[x_name]))
-                ys.append(float(row[y_name]))
+                x = float(row[x_name])
+                y = float(row[y_name])
             except (TypeError, ValueError):
                 # 缺列时 row[col] 是 None（TypeError）；字符串是 ValueError。
                 raise ValueError(f"CSV 第 {line_no} 行不是有效数值")
+            # NaN/Inf 也能被 float() 接受，但会让均值/方差失去意义，必须拒绝。
+            if not (math.isfinite(x) and math.isfinite(y)):
+                raise ValueError(f"CSV 第 {line_no} 行包含非有限数值（NaN/Inf）")
+            xs.append(x)
+            ys.append(y)
 
     # 只有 1 个点无法定义相关系数。
     if len(xs) < 2:

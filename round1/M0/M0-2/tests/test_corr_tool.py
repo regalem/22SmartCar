@@ -24,6 +24,10 @@ class TestPearson(unittest.TestCase):
         with self.assertRaises(ValueError):
             pearson([1, 2], [1, 2, 3])
 
+    def test_non_finite_result(self):
+        with self.assertRaises(ValueError):
+            pearson([1.0, float("nan")], [2.0, 4.0])
+
 
 class TestReadCsv(unittest.TestCase):
     def _write(self, text):
@@ -43,6 +47,16 @@ class TestReadCsv(unittest.TestCase):
 
     def test_non_numeric(self):
         path = self._write("x,y\n1,2\nabc,4\n")
+        with self.assertRaises(ValueError):
+            read_xy(path, "x", "y")
+
+    def test_nan_is_rejected(self):
+        path = self._write("x,y\n1,2\nnan,4\n3,6\n")
+        with self.assertRaises(ValueError):
+            read_xy(path, "x", "y")
+
+    def test_inf_is_rejected(self):
+        path = self._write("x,y\n1,2\ninf,4\n3,6\n")
         with self.assertRaises(ValueError):
             read_xy(path, "x", "y")
 
