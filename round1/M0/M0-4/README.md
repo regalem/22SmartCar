@@ -60,7 +60,8 @@ M0/M0-4/
 ├── report.json                   # 一次真实运行产生的报告样例（seed=0，全部成功）
 └── tests/
     ├── test_scheduler.py         # 调度逻辑单元测试（17 个用例）
-    └── test_yaml_fallback.py     # 内置 YAML 后备解析器测试（10 个用例）
+    ├── test_yaml_fallback.py     # 内置 YAML 后备解析器测试（10 个用例）
+    └── test_report_schema.py     # report.json 结构契约测试（1 个用例）
 ```
 
 ---
@@ -459,7 +460,7 @@ $ echo $?
 python -m unittest discover -s tests -v
 ```
 
-共 **27 个用例**：
+共 **28 个用例**：
 
 - `test_scheduler.py`（17 个）：拓扑分叉/汇合、稳定顺序、依赖环、缺失依赖、
   空任务列表、重名、`success_rate` 越界、全成功、重试用尽→`SKIPPED`、
@@ -468,11 +469,13 @@ python -m unittest discover -s tests -v
 - `test_yaml_fallback.py`（10 个）：内置后备解析器与 PyYAML 结果一致、
   标量类型、行内列表、块状 `dependencies`、注释、`---` 分隔符、
   含冒号的引号字符串、Tab 缩进可读报错、空文本报错。
+- `test_report_schema.py`（1 个）：`report.json` 结构契约——字段完整、
+  `status` 合法、`attempts<=3`，并验证"重试用尽→`SKIPPED`、下游继续传播"的最终状态。
 
 实测：
 
 ```text
-Ran 27 tests in 0.005s
+Ran 28 tests in 0.459s
 
 OK
 ```
