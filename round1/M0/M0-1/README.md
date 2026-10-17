@@ -427,7 +427,7 @@ Git 上传已完成：
 
 本项目使用 Codex 协助梳理 M0-1 要求、排查系统与网络问题、整理命令和起草本 README。
 
-**本人自主修改/完成**：VMware Workstation + Ubuntu 22.04.5、ROS2 Humble、conda/venv、C/C++ 工具链、VS Code 及插件、Git 与 SSH 工具均由本人实际安装配置；`check_env.sh --fix` 的 `PASS=30 FAIL=0 WARN=2` 来自本机真实输出；踩坑记录中的报错与修复步骤也由本人复现和验证。远程登录尚未完成，因此明确保留为待办，没有伪造 `known_hosts`。
+**本人完成**：VMware Workstation + Ubuntu 22.04.5、ROS2 Humble、conda/venv、C/C++ 工具链、VS Code 及插件、Git 与 SSH 工具均由本人实际安装配置；`check_env.sh --fix` 的 `PASS=30 FAIL=0 WARN=2` 来自本机真实输出；踩坑记录中的报错与修复步骤也由本人复现和验证。远程登录尚未完成，因此明确保留为待办，没有伪造 `known_hosts`。
 
 ## 9. 参考资料
 
