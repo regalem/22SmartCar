@@ -190,15 +190,15 @@ git config --global user.email
 git log --oneline --decorate
 ```
 
-个人仓库最初有 6 次 M0-2 提交：
+M0-2 的关键提交记录：
 
 ```text
-6ef5d62 docs: document usage input format and output meaning
-86a6403 test: cover correlation and invalid input cases
-c19fd00 feat: add CLI validation and readable error handling
-1578f39 fix: correct Pearson coefficient and reject zero variance
-fbe0e6d refactor: extract config and CSV loading into functions
-a40a81b chore: import M0-2 starter files
+013f10b docs(M0-2): 补运行方式、输入格式、输出含义与 AI 使用说明
+fb46fe1 test(M0-2): 覆盖正负相关、零方差、缺列、空文件与非数值
+176099a feat(M0-2): 增加 --config 参数、路径解析与可读错误处理
+faed572 fix(M0-2): 修正 Pearson 公式漏开方并拒绝零方差
+8494dfb refactor(M0-2): 抽出配置读取、CSV 读取与相关系数函数
+cd74fd4 chore(M0-2): 导入官方起始脚本、配置与示例数据
 ```
 
 Python 依赖不写入系统环境，项目内按需创建隔离环境：
@@ -423,9 +423,11 @@ Git 上传已完成：
 
 3. 将最终验收输出、实际登录的开发板类型和连接日期追加到本文档。没有真实连接前，不伪造 `known_hosts`，也不把远程登录标记为已完成。
 
-## 8. AI 使用说明
+## 8. AI 使用与本人自主修改说明
 
-本项目使用 Codex 协助梳理 M0-1 要求、排查系统与网络问题、整理命令和起草本 README。关键环境结果均来自本机终端或 VMware Ubuntu 内实际运行的命令；`PASS=30 FAIL=0 WARN=2` 来自真实 `check_env.sh --fix` 输出。远程登录尚未完成，因此明确保留为待办。
+本项目使用 Codex 协助梳理 M0-1 要求、排查系统与网络问题、整理命令和起草本 README。
+
+**本人自主修改/完成**：VMware Workstation + Ubuntu 22.04.5、ROS2 Humble、conda/venv、C/C++ 工具链、VS Code 及插件、Git 与 SSH 工具均由本人实际安装配置；`check_env.sh --fix` 的 `PASS=30 FAIL=0 WARN=2` 来自本机真实输出；踩坑记录中的报错与修复步骤也由本人复现和验证。远程登录尚未完成，因此明确保留为待办，没有伪造 `known_hosts`。
 
 ## 9. 参考资料
 

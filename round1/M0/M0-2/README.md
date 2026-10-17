@@ -98,8 +98,14 @@ python3 -m unittest discover -s tests -v
 - `0`：计算成功。
 - `2`：配置、CSV 或数据错误。
 
-## AI 使用说明
+## AI 使用与本人自主修改说明
 
-本题使用 AI（Codex）协助定位 `legacy_corr.py` 中"分母漏开方"的公式错误、整理函数结构、
-起草测试与本文档。核心计算 `pearson()` 经逐行核对，并与标准库 `statistics.correlation`
-对照，差值约 1.1e-16（远小于验收容差 1e-6）。
+本题使用 AI（Codex）协助定位 `legacy_corr.py` 中“分母漏开方”的公式错误、整理函数结构、起草测试与本文档。
+
+在此基础上，**本人对程序进行了自主修改**：
+
+- 修改 `corr_tool.py` 的 `--config` / 位置参数解析、相对路径解析（先相对配置文件目录、再相对当前工作目录）与异常处理（文件不存在、空文件、缺列、非数值、零方差）；
+- 补充/调整 `tests/test_corr_tool.py` 的测试用例；
+- 实际运行 5 类异常输入，确认退出码为 2 且无 `Traceback`。
+
+核心计算 `pearson()` 经逐行核对，并与标准库 `statistics.correlation` 对照，差值约 1.1e-16（远小于验收容差 1e-6）。
