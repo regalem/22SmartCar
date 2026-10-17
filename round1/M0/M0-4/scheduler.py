@@ -34,7 +34,8 @@ except ImportError:  # pragma: no cover - 取决于是否装了依赖
 
 # ------------------------------ 常量 ------------------------------
 
-MAX_ATTEMPTS = 3            # 1 次首发 + 最多 2 次重试
+# 尝试次数上限：1 次首发 + 最多 2 次重试，因此报告里的 attempts <= 3。
+MAX_ATTEMPTS = 3
 MAX_RETRIES = MAX_ATTEMPTS - 1
 DEFAULT_REPORT = "report.json"
 
@@ -44,6 +45,7 @@ SKIPPED = "SKIPPED"
 TIMEOUT = "TIMEOUT"
 RETRY = "RETRY"
 
+# 报告允许的最终状态；RETRY 只用于实时日志，不会写进报告。
 VALID_STATUS = (SUCCESS, FAILED, SKIPPED, TIMEOUT)
 
 # ANSI 颜色：SUCCESS 绿 / FAILED 红 / RETRY 黄 / SKIPPED 蓝
@@ -65,6 +67,7 @@ def make_colorizer(enabled: bool):
     """返回一个把状态名染色的函数；enabled 为 False 时原样返回。"""
 
     def colorize(text: str, status: str) -> str:
+        # 非 TTY（重定向到文件）时 enabled=False，避免输出 ANSI 转义符。
         if not enabled:
             return text
         return "{}{}{}".format(ANSI_COLORS.get(status, ""), text, ANSI_RESET)
@@ -81,6 +84,7 @@ def make_colorizer(enabled: bool):
 # 遇到不支持的写法会抛出可读的 SchedulerError，提示安装 PyYAML。
 
 def _yaml_strip_comment(line: str) -> str:
+    """去掉行内 `#` 注释，但保留引号内的 `#`。"""
     out = []
     quote = None
     for ch in line:
@@ -99,6 +103,7 @@ def _yaml_strip_comment(line: str) -> str:
 
 
 def _yaml_split_list(text: str) -> List[str]:
+    """按逗号切分行内列表，忽略引号内的逗号。"""
     parts: List[str] = []
     cur: List[str] = []
     quote = None
@@ -120,6 +125,7 @@ def _yaml_split_list(text: str) -> List[str]:
 
 
 def _yaml_scalar(token: str) -> Any:
+    """把 YAML 标量转成 bool/int/float/None/str。"""
     tok = token.strip()
     if tok == "":
         return None
@@ -146,6 +152,7 @@ def _yaml_scalar(token: str) -> Any:
 
 
 def _yaml_split_key(content: str):
+    """找第一个引号外的冒号，返回 (key, rest)；找不到返回 (content, None)。"""
     quote = None
     for idx, ch in enumerate(content):
         if quote:
@@ -159,10 +166,12 @@ def _yaml_split_key(content: str):
 
 
 def _yaml_is_list_item(content: str) -> bool:
+    """判断一行是否是 '-' 或 '- ' 开头的列表项。"""
     return content == "-" or content.startswith("- ")
 
 
 def _yaml_parse_map(lines, i: int, indent: int):
+    """解析同一缩进层级的 key: value 映射，返回 (dict, 下一行下标)。"""
     mapping: Dict[str, Any] = {}
     while i < len(lines):
         ind, content, lineno = lines[i]
@@ -195,6 +204,7 @@ def _yaml_parse_map(lines, i: int, indent: int):
 
 
 def _yaml_parse_list(lines, i: int, indent: int):
+    """解析同一缩进层级的列表，支持标量项和 '- key: value' 映射项。"""
     items: List[Any] = []
     while i < len(lines):
         ind, content, lineno = lines[i]
@@ -228,6 +238,7 @@ def _yaml_parse_list(lines, i: int, indent: int):
 
 
 def _yaml_parse_node(lines, i: int, indent: int):
+    """根据下一行的形态分派到列表或映射解析器。"""
     if i >= len(lines):
         return None, i
     if _yaml_is_list_item(lines[i][1]):
@@ -237,6 +248,7 @@ def _yaml_parse_node(lines, i: int, indent: int):
 
 def mini_yaml_load(text: str) -> Any:
     """PyYAML 缺失时的后备解析器（仅支持本任务用到的 YAML 子集）。"""
+    # 预处理：去注释、去空行、去 ---/...，并记录每行的缩进和原始行号。
     raw = []
     for lineno, line in enumerate(text.splitlines(), 1):
         stripped = _yaml_strip_comment(line)
@@ -246,6 +258,7 @@ def mini_yaml_load(text: str) -> Any:
         if bare in ("---", "..."):
             continue
         leading = stripped[: len(stripped) - len(stripped.lstrip())]
+        # Tab 与空格混用最容易出缩进错误，直接拒绝并提示装 PyYAML。
         if "\t" in leading:
             raise SchedulerError(
                 "后备 YAML 解析器不支持 Tab 缩进（第 {} 行）。"
@@ -270,6 +283,7 @@ def _load_yaml_text(text: str) -> Any:
         try:
             return yaml.safe_load(text)
         except yaml.YAMLError as exc:
+            # 包装成可读错误，避免 main 把 PyYAML 的栈回溯打印给用户。
             raise SchedulerError("YAML 语法错误: {}".format(exc)) from exc
     return mini_yaml_load(text)
 
@@ -278,11 +292,13 @@ def _load_yaml_text(text: str) -> Any:
 
 def load_config(path: str) -> Dict[str, Any]:
     """读取 YAML/JSON 配置，返回解析后的字典。出错抛 SchedulerError。"""
+    # 先判存在/目录，给出比 open() 更明确的错误。
     if not os.path.exists(path):
         raise SchedulerError("配置文件不存在: {}".format(path))
     if os.path.isdir(path):
         raise SchedulerError("配置路径是目录而不是文件: {}".format(path))
 
+    # 配置统一按 UTF-8 读取；解码失败也转成可读错误。
     try:
         with open(path, "r", encoding="utf-8") as fh:
             text = fh.read()
@@ -297,6 +313,7 @@ def load_config(path: str) -> Dict[str, Any]:
     ext = os.path.splitext(path)[1].lower()
     data: Any = None
 
+    # 按扩展名选择解析器；未知扩展名先试 JSON，再试 YAML。
     if ext in (".yaml", ".yml"):
         data = _load_yaml_text(text)
     elif ext == ".json":
@@ -311,8 +328,10 @@ def load_config(path: str) -> Dict[str, Any]:
         except json.JSONDecodeError:
             data = _load_yaml_text(text)
 
+    # 空文件/只有注释时 data 为 None。
     if data is None:
         raise SchedulerError("配置文件为空或只有注释: {}".format(path))
+    # 根节点必须是映射，后续才能安全地 .get("tasks")。
     if not isinstance(data, dict):
         raise SchedulerError("配置根节点必须是映射（包含 timeout / tasks 字段）")
     return data
@@ -320,6 +339,7 @@ def load_config(path: str) -> Dict[str, Any]:
 
 def parse_tasks(config: Dict[str, Any]) -> List[Dict[str, Any]]:
     """校验 tasks 字段，返回规范化后的任务列表。"""
+    # 先校验 tasks 字段本身，再逐个任务校验。
     raw_tasks = config.get("tasks")
     if raw_tasks is None:
         raise SchedulerError("配置缺少 'tasks' 字段")
@@ -340,6 +360,7 @@ def parse_tasks(config: Dict[str, Any]) -> List[Dict[str, Any]]:
         if not isinstance(name, str) or not name.strip():
             raise SchedulerError("{} 缺少合法的 'name'".format(where))
         name = name.strip()
+        # 任务名唯一：重名会让依赖解析和报告都产生歧义。
         if name in seen:
             raise SchedulerError("任务名重复: {}".format(name))
         seen.add(name)
@@ -347,8 +368,10 @@ def parse_tasks(config: Dict[str, Any]) -> List[Dict[str, Any]]:
         if "duration" not in item:
             raise SchedulerError("任务 {} 缺少 'duration'".format(name))
         duration = item["duration"]
+        # bool 是 int 的子类，必须显式排除，否则 True 会被当成 1。
         if isinstance(duration, bool) or not isinstance(duration, (int, float)):
             raise SchedulerError("任务 {} 的 'duration' 必须是数字".format(name))
+        # duration 允许 0（立即完成），但不允许负数。
         if duration < 0:
             raise SchedulerError("任务 {} 的 'duration' 不能为负数".format(name))
         duration = float(duration)
@@ -359,6 +382,7 @@ def parse_tasks(config: Dict[str, Any]) -> List[Dict[str, Any]]:
         if isinstance(rate, bool) or not isinstance(rate, (int, float)):
             raise SchedulerError("任务 {} 的 'success_rate' 必须是数字".format(name))
         rate = float(rate)
+        # success_rate 是概率，必须在 [0,1]。
         if not 0.0 <= rate <= 1.0:
             raise SchedulerError(
                 "任务 {} 的 'success_rate' 越界（应在 0.0~1.0 之间）: {}".format(name, rate)
@@ -374,7 +398,9 @@ def parse_tasks(config: Dict[str, Any]) -> List[Dict[str, Any]]:
             if not isinstance(dep, str) or not dep.strip():
                 raise SchedulerError("任务 {} 的依赖项必须是非空字符串".format(name))
             clean_deps.append(dep.strip())
-        clean_deps = list(dict.fromkeys(clean_deps))  # 去重且保持顺序
+        # 去重且保持顺序，避免重复入度导致误判。
+        clean_deps = list(dict.fromkeys(clean_deps))
+        # 自环在拓扑排序前给出更明确的错误。
         if name in clean_deps:
             raise SchedulerError("任务 {} 依赖了自己（自环）".format(name))
 
@@ -392,6 +418,7 @@ def parse_tasks(config: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 def parse_timeout(config: Dict[str, Any], cli_timeout: Optional[float]) -> Optional[float]:
     """命令行 --timeout 优先于配置文件 timeout；都没有则返回 None（不超时）。"""
+    # 命令行优先于配置；None 表示不限制。
     if cli_timeout is not None:
         if cli_timeout <= 0:
             raise SchedulerError("--timeout 必须大于 0")
@@ -415,6 +442,7 @@ def topological_order(tasks: List[Dict[str, Any]]) -> List[str]:
     names = [t["name"] for t in tasks]
     name_set = set(names)
 
+    # 先校验依赖存在，避免跑到一半才 KeyError。
     for task in tasks:
         for dep in task["dependencies"]:
             if dep not in name_set:
@@ -422,6 +450,7 @@ def topological_order(tasks: List[Dict[str, Any]]) -> List[str]:
                     "任务 {} 依赖了不存在的任务: {}".format(task["name"], dep)
                 )
 
+    # indegree：还有几个前置没完成；children：我完成后能解锁谁。
     indegree = {n: 0 for n in names}
     children: Dict[str, List[str]] = {n: [] for n in names}
     for task in tasks:
@@ -429,9 +458,11 @@ def topological_order(tasks: List[Dict[str, Any]]) -> List[str]:
             children[dep].append(task["name"])
             indegree[task["name"]] += 1
 
+    # 预建配置下标：sort 时 O(1) 取顺序，避免 names.index 的 O(n) 查找。
     rank = {name: i for i, name in enumerate(names)}
     ready = [n for n in names if indegree[n] == 0]
     order: List[str] = []
+    # 同层按配置顺序出队，保证同一配置 + 同一 seed 的结果可复现。
     while ready:
         ready.sort(key=rank.__getitem__)  # 稳定：取配置顺序最靠前的就绪节点
         node = ready.pop(0)
@@ -441,6 +472,7 @@ def topological_order(tasks: List[Dict[str, Any]]) -> List[str]:
             if indegree[child] == 0:
                 ready.append(child)
 
+    # 环上的节点入度永远不会归零，所以 order 会缺节点。
     if len(order) != len(names):
         remaining = [n for n in names if n not in order]
         raise SchedulerError("检测到依赖环，无法调度。涉及任务: " + ", ".join(remaining))
@@ -463,6 +495,7 @@ def run_scheduler(
     names = [t["name"] for t in tasks]
 
     status: Dict[str, str] = {}
+    # 先给每个任务占位，保证超时/跳过的任务也能写进报告。
     records: Dict[str, Dict[str, Any]] = {
         n: {
             "name": n,
@@ -476,6 +509,7 @@ def run_scheduler(
     }
 
     rng = random.Random(seed)
+    # monotonic 只用于算时长，不受系统时间调整影响。
     start = time.monotonic()
     timed_out = False
 
@@ -493,14 +527,16 @@ def run_scheduler(
         task = by_name[name]
 
         # 依赖失败 / 被跳过 -> 自身 SKIPPED（不执行）
+        # 拓扑序保证：轮到当前任务时，所有前置都已有最终状态。
         bad_deps = [d for d in task["dependencies"] if status.get(d) != SUCCESS]
+        # 前置不是 SUCCESS => 当前任务不执行，尝试 0 次。
         if bad_deps:
             status[name] = SKIPPED
             records[name]["status"] = SKIPPED
             log(SKIPPED, name, "(依赖未成功: {})".format(", ".join(bad_deps)))
             continue
 
-        # 执行前检查一次超时
+        # 执行前检查：还没开始就已经超时，就不要启动任务。
         if timeout is not None and elapsed() > timeout:
             timed_out = True
             break
@@ -511,6 +547,7 @@ def run_scheduler(
         attempts = 0
         outcome: Optional[str] = None
 
+        # 每次尝试都重新 sleep、重新抽随机数，不是抽一次决定三次。
         for attempt in range(1, MAX_ATTEMPTS + 1):
             attempts = attempt
             time.sleep(task["duration"])
@@ -553,6 +590,7 @@ def run_scheduler(
     total_duration = round(elapsed(), 3)
 
     # 因超时中断而从未执行的任务补记为 TIMEOUT，保证报告包含每个任务
+    # 未执行（status=None）的任务补记 TIMEOUT，保证 tasks[] 完整。
     for name in names:
         if records[name]["status"] is None:
             records[name]["status"] = TIMEOUT
@@ -566,6 +604,7 @@ def run_scheduler(
             flush=True,
         )
 
+    # 按配置顺序输出，方便考官核对，而不是按执行顺序。
     report = {
         "timeout": bool(timed_out),
         "total_duration": total_duration,
@@ -576,6 +615,7 @@ def run_scheduler(
 
 def write_report(path: str, report: Dict[str, Any]) -> None:
     """把报告写成 JSON（UTF-8，缩进 2）。"""
+    # 自动创建父目录，--report out/report.json 也能直接跑。
     out_dir = os.path.dirname(os.path.abspath(path))
     os.makedirs(out_dir, exist_ok=True)
     with open(path, "w", encoding="utf-8") as fh:
@@ -586,6 +626,7 @@ def write_report(path: str, report: Dict[str, Any]) -> None:
 # -------------------------------- CLI --------------------------------
 
 def build_parser() -> argparse.ArgumentParser:
+    """构造命令行参数解析器。"""
     parser = argparse.ArgumentParser(
         prog="scheduler.py",
         description="M0-4 TaskScheduler：按依赖顺序模拟执行任务，输出彩色日志与 report.json",
@@ -600,6 +641,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def resolve_color(args, stream=None) -> bool:
+    """决定是否输出 ANSI 颜色：--no-color > --color > NO_COLOR > TTY。"""
     stream = stream if stream is not None else sys.stdout
     if args.no_color:
         return False
@@ -611,6 +653,7 @@ def resolve_color(args, stream=None) -> bool:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
+    """命令行入口：校验配置、执行调度、写报告。"""
     parser = build_parser()
     args = parser.parse_args(argv)
 
@@ -620,6 +663,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         timeout = parse_timeout(config, args.timeout)
         topological_order(tasks)  # 提前校验依赖环/缺失依赖，避免跑一半才报错
     except SchedulerError as exc:
+        # 所有预期错误都转成可读信息 + 退出码 2。
         print("错误: {}".format(exc), file=sys.stderr)
         return 2
 
@@ -634,6 +678,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     try:
         write_report(args.report, report)
     except OSError as exc:
+        # 报告路径不可写时同样给出可读错误。
         print("错误: 无法写入报告 {}: {}".format(args.report, exc), file=sys.stderr)
         return 2
 
