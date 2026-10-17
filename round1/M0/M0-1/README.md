@@ -211,6 +211,23 @@ python3 -m pip install -r requirements.txt
 
 ROS2 的 Python 包与 Ubuntu 系统 Python 版本绑定。学习 ROS2 节点时不把 ROS2 安装进普通 venv；需要独立依赖时，使用 `/usr/bin/python3` 创建虚拟环境，并按任务需要选择 `--system-site-packages`。
 
+### 4.7 远程登录自检脚本
+
+`M0/M0-1/ssh_check.sh` 用于检查远程登录链路，不代替真实登录：
+
+```bash
+bash ssh_check.sh                    # 检查工具、公钥、权限、known_hosts
+bash ssh_check.sh <user>@<host>      # 额外测试免密登录与 scp 上传
+```
+
+判读方式：
+
+- `PASS`：该项已满足；
+- `WARN`：不影响工具链，但现场需要说明（例如 `known_hosts` 为空 = 还没有真实连接过）；
+- `FAIL`：必须修复（缺命令、没有公钥、指定主机登录失败）。
+
+脚本只做检查，不会伪造 `known_hosts`；只有真实执行 `ssh <user>@<host>` 后才会产生连接记录。
+
 ## 5. 本机踩坑实录
 
 ### 5.1 GitHub 直连失败、网页只有文字
