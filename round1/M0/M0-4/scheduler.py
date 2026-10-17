@@ -429,10 +429,11 @@ def topological_order(tasks: List[Dict[str, Any]]) -> List[str]:
             children[dep].append(task["name"])
             indegree[task["name"]] += 1
 
+    rank = {name: i for i, name in enumerate(names)}
     ready = [n for n in names if indegree[n] == 0]
     order: List[str] = []
     while ready:
-        ready.sort(key=names.index)  # 稳定：取配置顺序最靠前的就绪节点
+        ready.sort(key=rank.__getitem__)  # 稳定：取配置顺序最靠前的就绪节点
         node = ready.pop(0)
         order.append(node)
         for child in children[node]:
